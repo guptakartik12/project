@@ -1,0 +1,46 @@
+# Render Blueprint — auto-deploys from GitHub (no Docker).
+# Dashboard: New → Blueprint → connect repo dev-trinity-cat/SIH-059
+# Both services run on the Render Free plan with zero credit card required.
+# The ML service uses lightweight TFLite inference with real trained weights (~30 MB RAM).
+
+services:
+  - type: web
+    name: sih059-ml
+    plan: free
+    runtime: python
+    rootDir: ml_service
+    buildCommand: pip install -r requirements.txt
+    startCommand: python download_artifacts.py && gunicorn -w 1 --threads 2 -b 0.0.0.0:$PORT --timeout 180 app:app
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.11"
+      - key: MODEL_URL
+        sync: false
+      - key: SPATIAL_MASK_URL
+        sync: false
+      - key: LATITUDE_GRID_URL
+        sync: false
+      - key: LONGITUDE_GRID_URL
+        sync: false
+      - key: NC_URL
+        sync: false
+
+  - type: web
+    name: sih059-app
+    plan: free
+    runtime: node
+    buildCommand: cd Frontend && npm install && npm run build && cd ../backend && npm install
+    startCommand: node backend/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: ML_SERVICE_URL
+        fromService:
+          type: web
+          name: sih059-ml
+          envVarKey: RENDER_EXTERNAL_URL
+

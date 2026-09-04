@@ -1,0 +1,238 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 100%;
+  height: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: inherit;
+  z-index: 0;
+}
+
+.leaflet-control-container .leaflet-top,
+.leaflet-control-container .leaflet-bottom {
+  z-index: 400;
+}
+
+.ani-map-tooltip {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid #DCE6EA !important;
+  color: #0D2B3E !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  box-shadow: none !important;
+  padding: 2px 6px !important;
+}
+
+.ani-map-tooltip::before {
+  display: none !important;
+}
+
+.ani-vessel-icon {
+  background: none !important;
+  border: none !important;
+}
+
+body {
+  background-color: #F5F9FA;
+  color: #0D2B3E;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  min-width: 100%;
+  min-height: 100vh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  border: none;
+  overflow: hidden;
+}
+
+p {
+  margin: 0;
+}
+
+code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 14px;
+}
+
+.ani-app-root {
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+.ani-clickable {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.12s ease;
+}
+
+.ani-clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(13, 43, 62, 0.08);
+  border-color: #C4D3D9;
+}
+
+.ani-clickable:active {
+  transform: translateY(0);
+}
+
+.ani-nav-btn:hover {
+  background: #EDF3F5 !important;
+}
+
+.ani-table-row:hover td {
+  background: #F5FAFB;
+}
+
+.ani-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #3D5A6C;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ani-icon-btn:hover {
+  background: #EDF3F5;
+  color: #0D2B3E;
+}
+
+.ani-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 80;
+  background: #0D2B3E;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(13, 43, 62, 0.28);
+  max-width: min(360px, calc(100vw - 32px));
+}
+
+.ani-pulse {
+  animation: aniPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes aniPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.ani-map-frame {
+  width: 100%;
+  min-height: 220px;
+}
+
+.ani-chip {
+  border: 1px solid #DCE6EA;
+  background: #fff;
+  color: #0D2B3E;
+  border-radius: 99px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ani-chip:hover,
+.ani-chip.is-on {
+  border-color: #0F6E8C;
+  background: #E5F1F5;
+  color: #0F6E8C;
+}
+
+.ani-header {
+  padding: 14px 22px;
+}
+
+.ani-main {
+  padding: 18px;
+}
+
+.ani-alerts-panel {
+  position: absolute;
+  right: 0;
+  top: 36px;
+  width: min(340px, calc(100vw - 24px));
+  background: #fff;
+  border: 1px solid #DCE6EA;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(13, 43, 62, 0.16);
+  z-index: 60;
+  overflow: hidden;
+}
+
+@media (max-width: 1180px) {
+  .ani-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 880px) {
+  .ani-header {
+    padding: 10px 12px;
+  }
+  .ani-main {
+    padding: 12px;
+  }
+  .ani-main-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .ani-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .ani-analytics-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .ani-map-frame {
+    height: 280px !important;
+  }
+  .ani-page-title {
+    font-size: 15px !important;
+  }
+  .ani-page-sub {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .ani-kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .ani-map-frame {
+    height: 240px !important;
+  }
+}
