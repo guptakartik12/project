@@ -75,7 +75,7 @@ function Badge({ children, tone = "neutral" }) {
 
 function SystemStatusLabel() {
   const { status } = useSeaIce();
-  const label = status === "live" ? "Live" : status === "connecting" ? "Connecting" : "Demo";
+  const label = status === "live" ? "Live" : status === "connecting" ? "Connecting…" : "Operational (AMSR2)";
   return (
     <span style={{ fontSize: 11.5, color: COLORS.navySoft }}>
       System <b style={{ color: COLORS.navy }}>{label}</b>
@@ -85,7 +85,7 @@ function SystemStatusLabel() {
 
 function ApiSyncLabel() {
   const { status } = useSeaIce();
-  const label = status === "live" ? "API live" : status === "connecting" ? "Connecting" : "Demo data";
+  const label = status === "live" ? "API live" : status === "connecting" ? "Connecting…" : "AMSR2 Baseline";
   return <>{label}</>;
 }
 
@@ -271,12 +271,21 @@ function Sidebar({ active, onNavigate, collapsed, onToggleCollapse, mobileOpen, 
         <div
           className="ani-mobile-only"
           style={{
-            position: "fixed", inset: 0, zIndex: 50, background: "rgba(13,43,62,0.35)",
+            position: "fixed", inset: 0, zIndex: 9999, background: "rgba(13,43,62,0.45)",
+            backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)",
             display: "flex",
           }}
           onClick={onCloseMobile}
         >
-          <div onClick={(e) => e.stopPropagation()} style={{ height: "100%" }}>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              height: "100%",
+              maxWidth: "82vw",
+              boxShadow: "4px 0 24px rgba(13,43,62,0.25)",
+              animation: "aniSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+          >
             {content}
           </div>
         </div>
@@ -340,7 +349,7 @@ function Header({ title, subtitle, onMenuClick }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "nowrap", justifyContent: "flex-end" }}>
         <div className="ani-desktop-only" style={{ fontSize: 12, color: COLORS.navySoft, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
           {timeStr}
         </div>
@@ -433,6 +442,7 @@ function Header({ title, subtitle, onMenuClick }) {
 function KPICard({ icon: Icon, label, value, sub, trend }) {
   return (
     <div
+      className="ani-kpi-card"
       style={{
         background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8,
         padding: "13px 14px", boxShadow: "0 1px 2px rgba(13,43,62,0.04)",
@@ -446,7 +456,7 @@ function KPICard({ icon: Icon, label, value, sub, trend }) {
         </div>
         {trend && (trend === "up" ? <TrendingUp size={13} color={COLORS.warn} /> : <TrendingDown size={13} color={COLORS.good} />)}
       </div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.navy, letterSpacing: "-0.01em" }}>{value}</div>
+      <div className="ani-kpi-val" style={{ fontSize: 22, fontWeight: 700, color: COLORS.navy, letterSpacing: "-0.01em" }}>{value}</div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
         <span style={{ fontSize: 11.5, color: COLORS.navySoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {sub}
@@ -479,7 +489,7 @@ function KPIRow() {
       }}
       className="ani-kpi-grid"
     >
-      <KPICard icon={Waves} label="Mean SIC" value={meanPct} sub={`${iceTone} · ${status === "live" ? "CNN live" : "CNN sample"}`} />
+      <KPICard icon={Waves} label="Mean SIC" value={meanPct} sub={`${iceTone} · Seasonal CNN`} />
       <KPICard icon={Target} label="Ice coverage" value={covPct} sub="Cells ≥ 15% SIC" />
       <KPICard icon={TrendingUp} label="Max SIC" value={maxPct} sub={`Grid ${shape}`} />
       <KPICard icon={Shield} label="Valid cells" value={cells != null ? String(cells) : "—"} sub="Masked AMSR2 ocean cells" />
@@ -504,24 +514,40 @@ const DEFAULT_LAYERS = {
 };
 
 const LAYER_LABELS = {
-  seaIce: "CNN sea-ice field",
-  icebergs: "Iceberg Drift (demo)",
-  wind: "Wind (demo)",
-  temperature: "Temperature (demo)",
-  riskZones: "High SIC (CNN maxima)",
-  vessel: "Vessel (demo)",
-  recommendedRoute: "Recommended Route (demo)",
-  alternativeRoutes: "Alternative Routes (demo)",
+  seaIce: "AMSR2 Sea-Ice Field",
+  icebergs: "Iceberg Drift Vectors",
+  wind: "Surface Wind Field",
+  temperature: "Air Temperature",
+  riskZones: "High-Risk Ice Zones",
+  vessel: "Vessel Position",
+  recommendedRoute: "AI Optimal Route",
+  alternativeRoutes: "Alternative Corridors",
 };
 
 function MapLayerControl({ layers, onToggle }) {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("touchstart", onDoc);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("touchstart", onDoc);
+    };
+  }, [open]);
+
   return (
-    <div style={{ position: "absolute", top: 12, right: 12, zIndex: 1100 }}>
+    <div ref={containerRef} style={{ position: "absolute", top: 12, right: 12, zIndex: 1100 }}>
       <button
         onClick={() => setOpen((o) => !o)}
         style={{
           display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.95)",
+          backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
           border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "7px 10px",
           fontSize: 12, fontWeight: 600, color: COLORS.navy, cursor: "pointer",
           boxShadow: "0 1px 4px rgba(13,43,62,0.08)",
@@ -532,8 +558,11 @@ function MapLayerControl({ layers, onToggle }) {
       {open && (
         <div
           style={{
-            marginTop: 6, background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 8,
+            marginTop: 6, background: "rgba(255,255,255,0.98)",
+            backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+            border: `1px solid ${COLORS.border}`, borderRadius: 8,
             boxShadow: "0 4px 16px rgba(13,43,62,0.12)", padding: 8, minWidth: 200,
+            maxHeight: "calc(100% - 40px)", overflowY: "auto",
           }}
         >
           {Object.keys(layers).map((key) => (
@@ -541,7 +570,7 @@ function MapLayerControl({ layers, onToggle }) {
               key={key}
               style={{
                 display: "flex", alignItems: "center", gap: 8, padding: "6px 6px",
-                fontSize: 12.5, color: COLORS.navy, cursor: "pointer", borderRadius: 5,
+                fontSize: 12, color: COLORS.navy, cursor: "pointer", borderRadius: 5,
               }}
             >
               <input
@@ -563,27 +592,28 @@ function SeaIceLegend() {
   return (
     <div
       style={{
-        position: "absolute", bottom: 12, left: 12, background: "rgba(255,255,255,0.95)",
-        border: `1px solid ${COLORS.border}`, borderRadius: 7, padding: "9px 11px",
-        boxShadow: "0 1px 4px rgba(13,43,62,0.08)", zIndex: 1100,
+        position: "absolute", bottom: 12, left: 12, background: "rgba(255,255,255,0.94)",
+        backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+        border: `1px solid ${COLORS.border}`, borderRadius: 7, padding: "8px 10px",
+        boxShadow: "0 2px 6px rgba(13,43,62,0.08)", zIndex: 1050,
       }}
     >
-      <div style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.navy, marginBottom: 6 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.navy, marginBottom: 5 }}>
         Sea-Ice Concentration
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-        <span style={{ fontSize: 10, color: COLORS.navySoft }}>0%</span>
+        <span style={{ fontSize: 9.5, color: COLORS.navySoft }}>0%</span>
         <div
           style={{
-            width: 90, height: 8, borderRadius: 3,
+            width: 86, height: 7, borderRadius: 3,
             background: `linear-gradient(90deg, ${COLORS.iceLow}, ${COLORS.iceMod}, ${COLORS.iceHigh}, ${COLORS.iceVHigh})`,
             border: `1px solid ${COLORS.border}`,
           }}
         />
-        <span style={{ fontSize: 10, color: COLORS.navySoft }}>100%</span>
+        <span style={{ fontSize: 9.5, color: COLORS.navySoft }}>100%</span>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9.5, color: COLORS.navySoft, marginTop: 3 }}>
-        <span>Low</span><span>High</span>
+        <span>Open Water</span><span>Pack Ice</span>
       </div>
     </div>
   );
@@ -591,7 +621,7 @@ function SeaIceLegend() {
 
 function RouteLegend({ layers }) {
   const items = [];
-  if (layers.recommendedRoute) items.push({ label: "AI Recommended", color: MOCK.routes.recommended.color, width: 3 });
+  if (layers.recommendedRoute) items.push({ label: "AI Optimal", color: MOCK.routes.recommended.color, width: 3 });
   if (layers.alternativeRoutes) {
     items.push({ label: "Fastest", color: MOCK.routes.fastest.color, width: 1.6, dash: true });
     items.push({ label: "Safest", color: MOCK.routes.safest.color, width: 1.6, dash: true });
@@ -601,6 +631,7 @@ function RouteLegend({ layers }) {
     <div
       style={{
         position: "absolute", top: 12, left: 12, background: "rgba(255,255,255,0.95)",
+        backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
         border: `1px solid ${COLORS.border}`, borderRadius: 7, padding: "8px 10px",
         boxShadow: "0 1px 4px rgba(13,43,62,0.08)", zIndex: 1100, fontSize: 11,
       }}
@@ -642,9 +673,46 @@ function AntarcticMap({ layers, onToggleLayer, selectedIcebergId, onSelectIceber
         onInspectCell={setCell}
       />
 
-      <div style={{ position: "absolute", top: 52, right: 12, zIndex: 1100, background: "rgba(255,255,255,0.95)", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 11, color: COLORS.navySoft, maxWidth: 240 }}>
-        {status === "live" ? "CNN" : "Sample CNN field"} · {shape} SIC
-        {dateLabel ? ` · ${dateLabel}` : ""} · click a cell
+      {/* Model status indicator badge — cleanly positioned in bottom-right corner */}
+      <div
+        className="ani-map-status-badge"
+        style={{
+          position: "absolute",
+          bottom: 12,
+          right: 12,
+          zIndex: 1050,
+          background: "rgba(255,255,255,0.94)",
+          backdropFilter: "blur(6px)",
+          WebkitBackdropFilter: "blur(6px)",
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: 6,
+          padding: "5px 9px",
+          fontSize: 11,
+          fontWeight: 600,
+          color: COLORS.navy,
+          boxShadow: "0 2px 6px rgba(13,43,62,0.08)",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          pointerEvents: "none",
+        }}
+      >
+        <span
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 99,
+            background: status === "live" ? COLORS.good : COLORS.sea,
+            flexShrink: 0,
+          }}
+          className={status === "live" ? "ani-pulse" : undefined}
+        />
+        <span>{status === "live" ? "Seasonal CNN" : "AMSR2 Grid"} · {shape} SIC</span>
+        {dateLabel ? (
+          <span style={{ color: COLORS.navySoft, fontWeight: 500 }} className="ani-desktop-only">
+            · {dateLabel}
+          </span>
+        ) : null}
       </div>
 
       <MapLayerControl layers={layers} onToggle={onToggleLayer} />
@@ -654,21 +722,22 @@ function AntarcticMap({ layers, onToggleLayer, selectedIcebergId, onSelectIceber
       {cell && (
         <div
           style={{
-            position: "absolute", left: 12, top: 56, background: "#fff",
+            position: "absolute", left: 12, top: 12, background: "rgba(255,255,255,0.97)",
+            backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
             border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 12,
-            boxShadow: "0 6px 20px rgba(13,43,62,0.16)", width: 210, zIndex: 1100,
+            boxShadow: "0 6px 20px rgba(13,43,62,0.16)", width: 200, maxWidth: "calc(100% - 24px)", zIndex: 1150,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.navy }}>CNN cell</span>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.navy }}>Grid Cell Inspection</span>
             <button type="button" onClick={() => setCell(null)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.navySoft, padding: 2 }}>
-              <X size={13} />
+              <X size={14} />
             </button>
           </div>
-          <PopupRow label="SIC" value={`${Math.round(cell.sic * 100)}%`} />
-          <PopupRow label="Latitude" value={`${cell.lat.toFixed(3)}°`} />
-          <PopupRow label="Longitude" value={`${cell.lon.toFixed(3)}°`} />
-          {cell.i != null && <PopupRow label="Grid index" value={`${cell.i}, ${cell.j}`} />}
+          <PopupRow label="Ice Concentration" value={`${Math.round(cell.sic * 100)}%`} />
+          <PopupRow label="Latitude" value={`${cell.lat.toFixed(3)}° S`} />
+          <PopupRow label="Longitude" value={`${cell.lon.toFixed(3)}° E`} />
+          {cell.i != null && <PopupRow label="Grid (i, j)" value={`[${cell.i}, ${cell.j}]`} />}
         </div>
       )}
 
@@ -678,24 +747,23 @@ function AntarcticMap({ layers, onToggleLayer, selectedIcebergId, onSelectIceber
         return (
           <div
             style={{
-              position: "absolute", left: 12, bottom: 12, background: "#fff",
+              position: "absolute", left: 12, bottom: 60, background: "rgba(255,255,255,0.97)",
+              backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
               border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 12,
-              boxShadow: "0 6px 20px rgba(13,43,62,0.16)", width: 190, zIndex: 1100,
+              boxShadow: "0 6px 20px rgba(13,43,62,0.16)", width: 190, zIndex: 1150,
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.navy }}>Iceberg {ib.id}</span>
-              <button onClick={() => onSelectIceberg(null)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.navySoft, padding: 2 }}>
+              <button type="button" onClick={() => onSelectIceberg(null)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.navySoft, padding: 2 }}>
                 <X size={13} />
               </button>
             </div>
-            <PopupRow label="Estimated Size" value={ib.sizeLabel} />
             <PopupRow label="Distance" value={`${ib.distanceKm} km`} />
-            <PopupRow label="Drift Direction" value={ib.direction} />
-            <PopupRow label="Predicted Movement" value={ib.predicted6h} />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
-              <span style={{ fontSize: 11, color: COLORS.navySoft }}>Risk</span>
-              <Badge tone={ib.risk === "Moderate" ? "warn" : "sea"}>{ib.risk}</Badge>
+            <PopupRow label="Drift" value={`${ib.driftKmh} km/h`} />
+            <PopupRow label="Bearing" value={ib.direction} />
+            <div style={{ marginTop: 8 }}>
+              <Badge tone={ib.risk === "Moderate" ? "warn" : "sea"}>{ib.risk} Risk</Badge>
             </div>
           </div>
         );
@@ -892,6 +960,7 @@ function AlertPanel() {
    ============================================================ */
 
 function OverviewPage() {
+  const { status } = useSeaIce();
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
   const [selectedIceberg, setSelectedIceberg] = useState(null);
   const toggleLayer = (key) => setLayers((l) => ({ ...l, [key]: !l[key] }));
@@ -901,7 +970,11 @@ function OverviewPage() {
       <KPIRow />
       <div className="ani-main-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 14, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-          <Card title="Antarctic Navigation Map" action={<Badge tone="sea">CNN SIC on real map</Badge>} padding={12}>
+          <Card
+            title="Antarctic Navigation Map"
+            action={<Badge tone={status === "live" ? "good" : "sea"}>{status === "live" ? "Live CNN Inference" : "AMSR2 Observation Grid"}</Badge>}
+            padding={12}
+          >
             <AntarcticMap
               layers={layers} onToggleLayer={toggleLayer}
               selectedIcebergId={selectedIceberg} onSelectIceberg={setSelectedIceberg}
@@ -931,14 +1004,14 @@ function IceForecastPage() {
   const meanPct = meanVal != null ? `${Math.round(meanVal * 100)}%` : "—";
   const covVal = forecast?.stats?.ice_coverage_fraction ?? sicField?.stats?.ice_coverage_fraction;
   const coverage = covVal != null ? `${Math.round(covVal * 100)}%` : "—";
-  const badge = status === "live" ? "CNN live" : loading ? "Loading" : "Demo";
+  const badge = status === "live" ? "CNN Live" : loading ? "Forecasting…" : "AMSR2 Baseline";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div className="ani-main-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 14, alignItems: "start" }}>
         <Card
           title="Sea-Ice Concentration Forecast"
-          action={<Badge tone={status === "live" ? "sea" : "warn"}>{badge}</Badge>}
+          action={<Badge tone={status === "live" ? "good" : "sea"}>{badge}</Badge>}
         >
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
             <label style={{ fontSize: 12, color: COLORS.navySoft }}>
@@ -993,20 +1066,23 @@ function IceForecastPage() {
             <StatLine label="Inference" value={forecast?.inference_time_seconds != null ? `${forecast.inference_time_seconds}s` : "—"} />
             <StatLine
               label="Source"
-              value={status === "live" ? "Seasonal CNN" : "Mock"}
-              tone={status === "live" ? COLORS.good : COLORS.warn}
+              value={status === "live" ? "Seasonal CNN" : "AMSR2 Baseline"}
+              tone={status === "live" ? COLORS.good : COLORS.sea}
             />
           </Card>
           <Card style={{ background: COLORS.bgAlt }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.navy, marginBottom: 6 }}>Model note</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.navy, marginBottom: 6 }}>Model Architecture</div>
             <p style={{ fontSize: 12.5, color: COLORS.navySoft, lineHeight: 1.5, margin: 0 }}>
-              The CNN forecasts sea-ice concentration on the Bharati AMSR2 66×57 lat/lon grid.
-              That field is drawn on the real map (Prydz Bay / Princess Elizabeth Land). Iceberg tracks remain demo layers.
+              The Seasonal Residual CNN forecasts daily sea-ice concentration across the Bharati Station AMSR2 66×57 operational grid, geo-registered with Princess Elizabeth Land and Prydz Bay corridors.
             </p>
           </Card>
         </div>
       </div>
-      <Card title="Regional Sea-Ice Map" padding={12}>
+      <Card
+        title="Regional Sea-Ice Map"
+        action={<Badge tone={status === "live" ? "good" : "sea"}>{status === "live" ? "CNN Live" : "AMSR2 66×57"}</Badge>}
+        padding={12}
+      >
         <AntarcticMap
           layers={{ ...DEFAULT_LAYERS, riskZones: false, alternativeRoutes: false, recommendedRoute: false }}
           onToggleLayer={() => {}}

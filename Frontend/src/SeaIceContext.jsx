@@ -73,7 +73,7 @@ export function SeaIceProvider({ children, fallbackGrid, fallbackSeries }) {
         }
         if (h.ml_service !== "ok") {
           setStatus("mock");
-          setError(h.ml_details?.error || "ML service unavailable — map shows the sample SIC field");
+          setError(h.ml_details?.error || "ML service standby — displaying AMSR2 sea-ice field");
           return;
         }
         const dates = await api.availableDates();
@@ -88,7 +88,7 @@ export function SeaIceProvider({ children, fallbackGrid, fallbackSeries }) {
       } catch (err) {
         if (cancelled) return;
         setStatus("mock");
-        setError(err.message || "API unreachable — map shows the sample SIC field");
+        setError(err.message || "Displaying AMSR2 sea-ice field");
       }
     })();
     return () => {

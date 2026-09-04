@@ -88,6 +88,7 @@ export default function SeaIceMap({
       zoom={5}
       minZoom={3}
       maxZoom={10}
+      zoomControl={false}
       style={{ width: "100%", height: "100%", background: "#d9e7ee", cursor: "crosshair" }}
       attributionControl
     >
