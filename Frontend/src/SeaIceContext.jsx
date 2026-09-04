@@ -14,6 +14,7 @@ export function SeaIceProvider({ children, fallbackGrid, fallbackSeries }) {
   const [forecast, setForecast] = useState(null);
   const [sicField, setSicField] = useState(null);
   const [displayGrid, setDisplayGrid] = useState(fallbackGrid);
+  const [modelInfo, setModelInfo] = useState(null);
 
   const applyField = useCallback((raw) => {
     const field = normalizeSicPayload(raw);
@@ -64,6 +65,12 @@ export function SeaIceProvider({ children, fallbackGrid, fallbackSeries }) {
         const h = await api.health();
         if (cancelled) return;
         setHealth(h);
+        try {
+          const info = await api.modelInfo();
+          if (!cancelled) setModelInfo(info.config || info);
+        } catch {
+          /* optional metadata */
+        }
         if (h.ml_service !== "ok") {
           setStatus("mock");
           setError(h.ml_details?.error || "ML service unavailable — map shows the sample SIC field");
@@ -118,6 +125,7 @@ export function SeaIceProvider({ children, fallbackGrid, fallbackSeries }) {
     },
     forecast,
     sicField,
+    modelInfo,
     displayGrid,
     series,
     refresh: () => runPredict(targetDate),

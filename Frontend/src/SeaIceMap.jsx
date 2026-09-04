@@ -9,9 +9,10 @@ import {
   Tooltip,
   Marker,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import L from "leaflet";
-import { BHARATI, pctToLatLon, buildSicOverlay } from "./sicMap";
+import { BHARATI, pctToLatLon, buildSicOverlay, nearestCell, highIceHotspots } from "./sicMap";
 
 function MapResize({ height }) {
   const map = useMap();
@@ -35,6 +36,16 @@ function FitRegion({ bounds }) {
   return null;
 }
 
+function InspectClick({ field, onInspect }) {
+  useMapEvents({
+    click(e) {
+      if (!onInspect || !field) return;
+      onInspect(nearestCell(field, e.latlng.lat, e.latlng.lng));
+    },
+  });
+  return null;
+}
+
 function vesselIcon(heading) {
   return L.divIcon({
     className: "ani-vessel-icon",
@@ -53,12 +64,16 @@ export default function SeaIceMap({
   destination,
   icebergs,
   routes,
-  riskZones,
   weather,
   selectedIcebergId,
   onSelectIceberg,
+  onInspectCell,
 }) {
   const overlay = useMemo(() => (layers.seaIce ? buildSicOverlay(sicField) : null), [sicField, layers.seaIce]);
+  const hotspots = useMemo(
+    () => (layers.riskZones && sicField ? highIceHotspots(sicField) : []),
+    [sicField, layers.riskZones],
+  );
   const stationLL = [station.lat, station.lon];
   const destLL = pctToLatLon(destination.position.x, destination.position.y);
   const vesselLL = pctToLatLon(vessel.position.x, vessel.position.y);
@@ -73,40 +88,41 @@ export default function SeaIceMap({
       zoom={5}
       minZoom={3}
       maxZoom={10}
-      style={{ width: "100%", height: "100%", background: "#d9e7ee" }}
+      style={{ width: "100%", height: "100%", background: "#d9e7ee", cursor: "crosshair" }}
       attributionControl
     >
       <MapResize height={height} />
       <FitRegion bounds={fitBounds} />
+      <InspectClick field={sicField} onInspect={onInspectCell} />
       <TileLayer
         attribution="Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics"
         url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
       />
 
       {overlay && layers.seaIce && (
-        <ImageOverlay url={overlay.url} bounds={overlay.bounds} opacity={0.78} />
+        <ImageOverlay url={overlay.url} bounds={overlay.bounds} opacity={0.7} />
       )}
 
       {layers.riskZones &&
-        riskZones.map((z) => {
-          const [lat, lon] = pctToLatLon(z.cx, z.cy);
-          const meters = ((z.rx + z.ry) / 2 / 100) * 900_000;
-          const color = z.level === "High" ? "#8C6A4E" : z.level === "Moderate" ? "#4B7F98" : "#9FC7D6";
-          return (
-            <Circle
-              key={z.id}
-              center={[lat, lon]}
-              radius={meters}
-              pathOptions={{
-                color,
-                fillColor: color,
-                fillOpacity: z.level === "High" ? 0.22 : 0.14,
-                weight: 1,
-                dashArray: "4 4",
-              }}
-            />
-          );
-        })}
+        hotspots.map((z) => (
+          <Circle
+            key={z.id}
+            center={[z.lat, z.lon]}
+            radius={8000 + z.sic * 14000}
+            eventHandlers={{ click: () => onInspectCell?.({ ...z, sic: z.sic }) }}
+            pathOptions={{
+              color: z.sic >= 0.85 ? "#A8503B" : "#B8895B",
+              fillColor: z.sic >= 0.85 ? "#A8503B" : "#B8895B",
+              fillOpacity: 0.18,
+              weight: 1,
+              dashArray: "4 4",
+            }}
+          >
+            <Tooltip className="ani-map-tooltip">
+              CNN SIC {Math.round(z.sic * 100)}% · {z.lat.toFixed(2)}°, {z.lon.toFixed(2)}°
+            </Tooltip>
+          </Circle>
+        ))}
 
       {layers.icebergs &&
         icebergs.map((ib) => (
@@ -173,15 +189,17 @@ export default function SeaIceMap({
         </Tooltip>
       </CircleMarker>
 
-      <CircleMarker
-        center={destLL}
-        radius={6}
-        pathOptions={{ color: "#0F6E8C", fillColor: "#ffffff", fillOpacity: 1, weight: 2 }}
-      >
-        <Tooltip permanent direction="top" offset={[0, -8]} className="ani-map-tooltip">
-          {destination.name}
-        </Tooltip>
-      </CircleMarker>
+      {layers.vessel && (
+        <CircleMarker
+          center={destLL}
+          radius={6}
+          pathOptions={{ color: "#0F6E8C", fillColor: "#ffffff", fillOpacity: 1, weight: 2 }}
+        >
+          <Tooltip permanent direction="top" offset={[0, -8]} className="ani-map-tooltip">
+            {destination.name}
+          </Tooltip>
+        </CircleMarker>
+      )}
 
       {layers.icebergs &&
         icebergs.map((ib) => {

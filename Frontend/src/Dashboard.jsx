@@ -457,11 +457,21 @@ function KPICard({ icon: Icon, label, value, sub, trend }) {
 }
 
 function KPIRow() {
-  const { sicField, forecast, status } = useSeaIce();
-  const iceberg = MOCK.icebergs.slice().sort((a, b) => a.distanceKm - b.distanceKm)[0];
-  const mean = forecast?.stats?.mean_concentration ?? sicField?.stats?.mean_concentration;
+  const { sicField, forecast, status, modelInfo } = useSeaIce();
+  const stats = forecast?.stats || sicField?.stats;
+  const mean = stats?.mean_concentration;
+  const cov = stats?.ice_coverage_fraction;
+  const max = stats?.max_concentration;
+  const cells = stats?.valid_cells;
+  const shape = sicField?.prediction
+    ? `${sicField.prediction.length}×${sicField.prediction[0].length}`
+    : "66×57";
   const meanPct = mean != null ? `${Math.round(mean * 100)}%` : "—";
-  const iceTone = mean == null ? "Moderate" : mean < 0.3 ? "Open water" : mean < 0.6 ? "Moderate" : "Packed";
+  const covPct = cov != null ? `${Math.round(cov * 100)}%` : "—";
+  const maxPct = max != null ? `${Math.round(max * 100)}%` : "—";
+  const iceTone = mean == null ? "—" : mean < 0.15 ? "Open water" : mean < 0.4 ? "Scattered" : mean < 0.7 ? "Close ice" : "Packed";
+  const perf = sicField?.modelInfo?.performance || modelInfo?.model_performance;
+  const mae = perf?.test?.mae ?? perf?.validation?.mae ?? 0.075072;
   return (
     <div
       style={{
@@ -469,11 +479,11 @@ function KPIRow() {
       }}
       className="ani-kpi-grid"
     >
-      <KPICard icon={Waves} label="Sea Ice" value={meanPct} sub={`${iceTone} · ${status === "live" ? "CNN grid" : "Sample grid"}`} />
-      <KPICard icon={AlertTriangle} label="Iceberg Risk" value="LOW" sub={`Nearest: ${iceberg.distanceKm} km (${iceberg.id})`} />
-      <KPICard icon={Thermometer} label="Weather" value="−18°C" sub={`Wind ${MOCK.weather.windSpeed} km/h ${MOCK.weather.windDirection}`} />
-      <KPICard icon={Shield} label="Route Risk" value="18/100" sub="Low risk · Recommended route" />
-      <KPICard icon={CheckCircle2} label="AI Confidence" value="91%" sub="Prediction confidence" />
+      <KPICard icon={Waves} label="Mean SIC" value={meanPct} sub={`${iceTone} · ${status === "live" ? "CNN live" : "CNN sample"}`} />
+      <KPICard icon={Target} label="Ice coverage" value={covPct} sub="Cells ≥ 15% SIC" />
+      <KPICard icon={TrendingUp} label="Max SIC" value={maxPct} sub={`Grid ${shape}`} />
+      <KPICard icon={Shield} label="Valid cells" value={cells != null ? String(cells) : "—"} sub="Masked AMSR2 ocean cells" />
+      <KPICard icon={CheckCircle2} label="Model MAE" value={mae != null ? mae.toFixed(3) : "—"} sub="Test / validation error" />
     </div>
   );
 }
@@ -484,24 +494,24 @@ function KPIRow() {
 
 const DEFAULT_LAYERS = {
   seaIce: true,
-  icebergs: true,
+  icebergs: false,
   wind: false,
   temperature: false,
   riskZones: true,
-  vessel: true,
-  recommendedRoute: true,
+  vessel: false,
+  recommendedRoute: false,
   alternativeRoutes: false,
 };
 
 const LAYER_LABELS = {
-  seaIce: "Sea-Ice Concentration",
-  icebergs: "Iceberg Drift",
-  wind: "Wind",
-  temperature: "Temperature",
-  riskZones: "Risk Zones",
-  vessel: "Vessel",
-  recommendedRoute: "Recommended Route",
-  alternativeRoutes: "Alternative Routes",
+  seaIce: "CNN sea-ice field",
+  icebergs: "Iceberg Drift (demo)",
+  wind: "Wind (demo)",
+  temperature: "Temperature (demo)",
+  riskZones: "High SIC (CNN maxima)",
+  vessel: "Vessel (demo)",
+  recommendedRoute: "Recommended Route (demo)",
+  alternativeRoutes: "Alternative Routes (demo)",
 };
 
 function MapLayerControl({ layers, onToggle }) {
@@ -609,9 +619,14 @@ function RouteLegend({ layers }) {
 
 function AntarcticMap({ layers, onToggleLayer, selectedIcebergId, onSelectIceberg, height = 480, showLegend = true }) {
   const { sicField, status } = useSeaIce();
+  const [cell, setCell] = useState(null);
+  const shape = sicField?.prediction
+    ? `${sicField.prediction.length}×${sicField.prediction[0].length}`
+    : "66×57";
+  const dateLabel = (sicField?.targetDate || "").toString().slice(0, 10);
 
   return (
-    <div style={{ position: "relative", width: "100%", height, borderRadius: 8, overflow: "hidden", border: `1px solid ${COLORS.border}`, background: "#EAF3F6" }}>
+    <div className="ani-map-frame" style={{ position: "relative", width: "100%", height, borderRadius: 8, overflow: "hidden", border: `1px solid ${COLORS.border}`, background: "#EAF3F6" }}>
       <SeaIceMap
         height={height}
         sicField={sicField}
@@ -621,19 +636,41 @@ function AntarcticMap({ layers, onToggleLayer, selectedIcebergId, onSelectIceber
         destination={MOCK.destination}
         icebergs={MOCK.icebergs}
         routes={MOCK.routes}
-        riskZones={MOCK.riskZones}
         weather={MOCK.weather}
         selectedIcebergId={selectedIcebergId}
         onSelectIceberg={onSelectIceberg}
+        onInspectCell={setCell}
       />
 
-      <div style={{ position: "absolute", top: 52, right: 12, zIndex: 1100, background: "rgba(255,255,255,0.95)", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 11, color: COLORS.navySoft, maxWidth: 220 }}>
-        {status === "live" ? "CNN 66×57 SIC grid · geographic" : "Sample SIC grid · geographic"}
+      <div style={{ position: "absolute", top: 52, right: 12, zIndex: 1100, background: "rgba(255,255,255,0.95)", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 11, color: COLORS.navySoft, maxWidth: 240 }}>
+        {status === "live" ? "CNN" : "Sample CNN field"} · {shape} SIC
+        {dateLabel ? ` · ${dateLabel}` : ""} · click a cell
       </div>
 
       <MapLayerControl layers={layers} onToggle={onToggleLayer} />
       {showLegend && layers.seaIce && <SeaIceLegend />}
       <RouteLegend layers={layers} />
+
+      {cell && (
+        <div
+          style={{
+            position: "absolute", left: 12, top: 56, background: "#fff",
+            border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 12,
+            boxShadow: "0 6px 20px rgba(13,43,62,0.16)", width: 210, zIndex: 1100,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.navy }}>CNN cell</span>
+            <button type="button" onClick={() => setCell(null)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.navySoft, padding: 2 }}>
+              <X size={13} />
+            </button>
+          </div>
+          <PopupRow label="SIC" value={`${Math.round(cell.sic * 100)}%`} />
+          <PopupRow label="Latitude" value={`${cell.lat.toFixed(3)}°`} />
+          <PopupRow label="Longitude" value={`${cell.lon.toFixed(3)}°`} />
+          {cell.i != null && <PopupRow label="Grid index" value={`${cell.i}, ${cell.j}`} />}
+        </div>
+      )}
 
       {selectedIcebergId && (() => {
         const ib = MOCK.icebergs.find((i) => i.id === selectedIcebergId);
@@ -641,7 +678,7 @@ function AntarcticMap({ layers, onToggleLayer, selectedIcebergId, onSelectIceber
         return (
           <div
             style={{
-              position: "absolute", left: 12, top: 56, background: "#fff",
+              position: "absolute", left: 12, bottom: 12, background: "#fff",
               border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 12,
               boxShadow: "0 6px 20px rgba(13,43,62,0.16)", width: 190, zIndex: 1100,
             }}
@@ -864,7 +901,7 @@ function OverviewPage() {
       <KPIRow />
       <div className="ani-main-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 14, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-          <Card title="Antarctic Navigation Map" action={<Badge tone="sea">Bharati region · 66×57 SIC</Badge>} padding={12}>
+          <Card title="Antarctic Navigation Map" action={<Badge tone="sea">CNN SIC on real map</Badge>} padding={12}>
             <AntarcticMap
               layers={layers} onToggleLayer={toggleLayer}
               selectedIcebergId={selectedIceberg} onSelectIceberg={setSelectedIceberg}
@@ -1052,7 +1089,7 @@ function IcebergsPage() {
         )}
         <Card title="Iceberg Map" padding={12}>
           <AntarcticMap
-            layers={{ ...DEFAULT_LAYERS, riskZones: false, recommendedRoute: false }}
+            layers={{ ...DEFAULT_LAYERS, icebergs: true, riskZones: false, recommendedRoute: false }}
             onToggleLayer={() => {}}
             selectedIcebergId={selected} onSelectIceberg={setSelected}
             height={260} showLegend={false}
@@ -1112,7 +1149,7 @@ function RiskMapPage() {
 function RoutePlannerPage() {
   const [destination, setDestination] = useState(MOCK.destination.name);
   const [generated, setGenerated] = useState(true);
-  const [layers, setLayers] = useState({ ...DEFAULT_LAYERS, alternativeRoutes: true });
+  const [layers, setLayers] = useState({ ...DEFAULT_LAYERS, alternativeRoutes: true, recommendedRoute: true, vessel: true });
   const [selectedRoute, setSelectedRoute] = useState(MOCK.routes.recommended.id);
   const toggleLayer = (key) => setLayers((l) => ({ ...l, [key]: !l[key] }));
 

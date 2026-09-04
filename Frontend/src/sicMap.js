@@ -9,24 +9,65 @@ export const REGION = {
   lonMax: 90,
 };
 
-const ICE_COLORS = {
-  iceLow: [220, 238, 243],
-  iceMod: [143, 193, 212],
-  iceHigh: [62, 127, 156],
-  iceVHigh: [27, 74, 97],
-};
-
 export function pctToLatLon(x, y) {
   const lat = REGION.latMax - (y / 100) * (REGION.latMax - REGION.latMin);
   const lon = REGION.lonMin + (x / 100) * (REGION.lonMax - REGION.lonMin);
   return [lat, lon];
 }
 
+export function sic01(v) {
+  if (v == null || Number.isNaN(Number(v))) return null;
+  const n = Number(v);
+  if (n > 1.5) return Math.max(0, Math.min(1, n / 100));
+  return Math.max(0, Math.min(1, n));
+}
+
+/** Continuous colormap for SIC 0–1 (open water → packed ice). */
+export function sicFill(v01) {
+  const t = Math.max(0, Math.min(1, v01));
+  const stops = [
+    [0.0, [190, 225, 235], 0.08],
+    [0.15, [168, 210, 224], 0.28],
+    [0.35, [120, 186, 208], 0.48],
+    [0.55, [62, 127, 156], 0.62],
+    [0.75, [32, 84, 112], 0.78],
+    [1.0, [14, 48, 68], 0.9],
+  ];
+  let a = stops[0];
+  let b = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i += 1) {
+    if (t >= stops[i][0] && t <= stops[i + 1][0]) {
+      a = stops[i];
+      b = stops[i + 1];
+      break;
+    }
+  }
+  const span = b[0] - a[0] || 1;
+  const u = (t - a[0]) / span;
+  const rgb = a[1].map((c, i) => Math.round(c + (b[1][i] - c) * u));
+  const alpha = a[2] + (b[2] - a[2]) * u;
+  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha.toFixed(3)})`;
+}
+
 export function iceRgb(vPct) {
-  if (vPct < 20) return ICE_COLORS.iceLow;
-  if (vPct < 45) return ICE_COLORS.iceMod;
-  if (vPct < 70) return ICE_COLORS.iceHigh;
-  return ICE_COLORS.iceVHigh;
+  const t = vPct / 100;
+  const stops = [
+    [0, [220, 238, 243]],
+    [0.45, [143, 193, 212]],
+    [0.7, [62, 127, 156]],
+    [1, [27, 74, 97]],
+  ];
+  let a = stops[0];
+  let b = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i += 1) {
+    if (t >= stops[i][0] && t <= stops[i + 1][0]) {
+      a = stops[i];
+      b = stops[i + 1];
+      break;
+    }
+  }
+  const u = (t - a[0]) / ((b[0] - a[0]) || 1);
+  return a[1].map((c, i) => Math.round(c + (b[1][i] - c) * u));
 }
 
 export function iceCss(vPct) {
@@ -70,6 +111,7 @@ export function normalizeSicPayload(raw) {
     stats: raw.stats || computeStats(prediction),
     targetDate: raw.target_date || raw.prediction_date || null,
     inferenceTime: raw.inference_time_seconds ?? null,
+    modelInfo: raw.model_info || raw.config || null,
     raw,
   };
 }
@@ -110,76 +152,171 @@ export function computeStats(prediction) {
   };
 }
 
+export function fieldBounds(field) {
+  if (!field?.latitude || !field?.longitude) return null;
+  let latMin = Infinity;
+  let latMax = -Infinity;
+  let lonMin = Infinity;
+  let lonMax = -Infinity;
+  const H = field.latitude.length;
+  const W = field.latitude[0]?.length || 0;
+  for (let i = 0; i < H; i += 1) {
+    for (let j = 0; j < W; j += 1) {
+      const lat = Number(field.latitude[i][j]);
+      const lon = Number(field.longitude[i][j]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      if (lat < latMin) latMin = lat;
+      if (lat > latMax) latMax = lat;
+      if (lon < lonMin) lonMin = lon;
+      if (lon > lonMax) lonMax = lon;
+    }
+  }
+  if (!Number.isFinite(latMin)) return null;
+  return [[latMin, lonMin], [latMax, lonMax]];
+}
+
+function gridVal(grid, i, j) {
+  const H = grid.length;
+  const W = grid[0].length;
+  const ii = Math.max(0, Math.min(H - 1, i));
+  const jj = Math.max(0, Math.min(W - 1, j));
+  return Number(grid[ii][jj]);
+}
+
+function cellCorners(latG, lonG, i, j) {
+  const H = latG.length;
+  const W = latG[0].length;
+  const i1 = i + 1 <= H - 1 ? i + 1 : i - 1;
+  const j1 = j + 1 <= W - 1 ? j + 1 : j - 1;
+  const lat00 = gridVal(latG, i, j);
+  const lon00 = gridVal(lonG, i, j);
+  const lat01 = gridVal(latG, i, j1);
+  const lon01 = gridVal(lonG, i, j1);
+  const lat10 = gridVal(latG, i1, j);
+  const lon10 = gridVal(lonG, i1, j);
+  const lat11 = gridVal(latG, i1, j1);
+  const lon11 = gridVal(lonG, i1, j1);
+  const sJ = j1 < j ? -1 : 1;
+  const sI = i1 < i ? -1 : 1;
+  return [
+    [lat00, lon00],
+    [lat00 + sJ * (lat01 - lat00), lon00 + sJ * (lon01 - lon00)],
+    [lat00 + sI * (lat10 - lat00) + sJ * (lat11 - lat00), lon00 + sI * (lon10 - lon00) + sJ * (lon11 - lon00)],
+    [lat00 + sI * (lat10 - lat00), lon00 + sI * (lon10 - lon00)],
+  ];
+}
+
+function toPx(lat, lon, latMin, latMax, lonMin, lonMax, w, h) {
+  const x = ((lon - lonMin) / (lonMax - lonMin)) * (w - 1);
+  const y = ((latMax - lat) / (latMax - latMin)) * (h - 1);
+  return [x, y];
+}
+
 /**
- * Rasterize the 66×57 AMSR2 field into an equirectangular PNG for Leaflet ImageOverlay.
+ * Paint each AMSR2 cell as a lat/lon quad so the overlay sits on the real coastline.
  */
 export function buildSicOverlay(field) {
   if (typeof document === "undefined" || !field?.prediction) return null;
   const { prediction, latitude, longitude, mask } = field;
   const H = prediction.length;
   const W = prediction[0]?.length || 0;
-  if (!H || !W) return null;
+  if (!H || !W || !latitude || !longitude) return null;
 
-  let latMin = Infinity;
-  let latMax = -Infinity;
-  let lonMin = Infinity;
-  let lonMax = -Infinity;
-
-  for (let i = 0; i < H; i += 1) {
-    for (let j = 0; j < W; j += 1) {
-      const lat = latitude?.[i]?.[j];
-      const lon = longitude?.[i]?.[j];
-      if (lat == null || lon == null || Number.isNaN(Number(lat)) || Number.isNaN(Number(lon))) continue;
-      const la = Number(lat);
-      const lo = Number(lon);
-      if (la < latMin) latMin = la;
-      if (la > latMax) latMax = la;
-      if (lo < lonMin) lonMin = lo;
-      if (lo > lonMax) lonMax = lo;
-    }
-  }
-
-  if (!Number.isFinite(latMin) || latMax <= latMin || lonMax <= lonMin) {
-    latMin = REGION.latMin;
-    latMax = REGION.latMax;
-    lonMin = REGION.lonMin;
-    lonMax = REGION.lonMax;
-  }
+  const bounds = fieldBounds(field);
+  if (!bounds) return null;
+  const [[latMin, lonMin], [latMax, lonMax]] = bounds;
+  const lonSpan = lonMax - lonMin;
+  const latSpan = latMax - latMin;
+  if (lonSpan <= 0 || latSpan <= 0) return null;
 
   const canvas = document.createElement("canvas");
-  canvas.width = 900;
-  canvas.height = 720;
+  canvas.width = 1280;
+  canvas.height = Math.max(420, Math.round(1280 * (latSpan / lonSpan)));
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const lonSpan = lonMax - lonMin;
-  const latSpan = latMax - latMin;
-  const cellW = Math.max(4, Math.ceil(canvas.width / W) + 2);
-  const cellH = Math.max(4, Math.ceil(canvas.height / H) + 2);
-
   for (let i = 0; i < H; i += 1) {
     for (let j = 0; j < W; j += 1) {
       if (mask && mask[i] && mask[i][j] === false) continue;
-      const v = prediction[i][j];
-      if (v == null || Number.isNaN(Number(v))) continue;
-      const lat = Number(latitude?.[i]?.[j]);
-      const lon = Number(longitude?.[i]?.[j]);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-      const x = ((lon - lonMin) / lonSpan) * (canvas.width - 1);
-      const y = ((latMax - lat) / latSpan) * (canvas.height - 1);
-      const pct = Number(v) <= 1.5 ? Number(v) * 100 : Number(v);
-      const [r, g, b] = iceRgb(pct);
-      ctx.fillStyle = `rgba(${r},${g},${b},${0.28 + Math.min(0.55, pct / 180)})`;
-      ctx.fillRect(x - cellW / 2, y - cellH / 2, cellW, cellH);
+      const v = sic01(prediction[i][j]);
+      if (v == null) continue;
+      const corners = cellCorners(latitude, longitude, i, j);
+      if (corners.some((c) => !Number.isFinite(c[0]) || !Number.isFinite(c[1]))) continue;
+      ctx.beginPath();
+      corners.forEach((c, idx) => {
+        const [x, y] = toPx(c[0], c[1], latMin, latMax, lonMin, lonMax, canvas.width, canvas.height);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = sicFill(v);
+      ctx.fill();
     }
   }
 
   return {
     url: canvas.toDataURL("image/png"),
-    bounds: [
-      [latMin, lonMin],
-      [latMax, lonMax],
-    ],
+    bounds,
+    shape: { height: H, width: W },
   };
+}
+
+export function nearestCell(field, lat, lon) {
+  if (!field?.prediction || !field.latitude) return null;
+  const H = field.prediction.length;
+  const W = field.prediction[0].length;
+  let best = null;
+  let bestD = Infinity;
+  for (let i = 0; i < H; i += 1) {
+    for (let j = 0; j < W; j += 1) {
+      if (field.mask && field.mask[i] && field.mask[i][j] === false) continue;
+      const v = sic01(field.prediction[i][j]);
+      if (v == null) continue;
+      const la = Number(field.latitude[i][j]);
+      const lo = Number(field.longitude[i][j]);
+      if (!Number.isFinite(la) || !Number.isFinite(lo)) continue;
+      const d = (la - lat) ** 2 + (lo - lon) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = { i, j, lat: la, lon: lo, sic: v };
+      }
+    }
+  }
+  if (!best || bestD > 0.85) return null;
+  return best;
+}
+
+/** Local maxima in the CNN field — used as model-based high-ice risk markers. */
+export function highIceHotspots(field, minSic = 0.72, limit = 18) {
+  if (!field?.prediction) return [];
+  const H = field.prediction.length;
+  const W = field.prediction[0].length;
+  const hits = [];
+  for (let i = 1; i < H - 1; i += 1) {
+    for (let j = 1; j < W - 1; j += 1) {
+      if (field.mask && field.mask[i] && field.mask[i][j] === false) continue;
+      const v = sic01(field.prediction[i][j]);
+      if (v == null || v < minSic) continue;
+      let maxN = v;
+      for (let di = -1; di <= 1; di += 1) {
+        for (let dj = -1; dj <= 1; dj += 1) {
+          if (di === 0 && dj === 0) continue;
+          const n = sic01(field.prediction[i + di][j + dj]);
+          if (n != null && n > maxN) maxN = n;
+        }
+      }
+      if (maxN > v) continue;
+      hits.push({
+        id: `sic-${i}-${j}`,
+        lat: Number(field.latitude[i][j]),
+        lon: Number(field.longitude[i][j]),
+        sic: v,
+        i,
+        j,
+      });
+    }
+  }
+  hits.sort((a, b) => b.sic - a.sic);
+  return hits.slice(0, limit);
 }
