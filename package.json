@@ -1,5 +1,5 @@
 {
-  "name": "sih-059",
+  "name": "frontend-root",
   "private": true,
   "version": "1.0.0",
   "description": "Antarctic Navigation Intelligence — run from repo root",
@@ -8,9 +8,7 @@
     "build": "npm run build --prefix Frontend",
     "lint": "npm run lint --prefix Frontend",
     "preview": "npm run preview --prefix Frontend",
-    "backend": "npm start --prefix backend",
     "install:frontend": "npm install --prefix Frontend",
-    "install:backend": "npm install --prefix backend",
     "postinstall": "npm install --prefix Frontend"
   }
 }
