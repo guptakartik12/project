@@ -1,0 +1,14 @@
+{
+  "name": "frontend-root",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Antarctic Navigation Intelligence — run from repo root",
+  "scripts": {
+    "dev": "npm run dev --prefix Frontend",
+    "build": "npm run build --prefix Frontend",
+    "lint": "npm run lint --prefix Frontend",
+    "preview": "npm run preview --prefix Frontend",
+    "install:frontend": "npm install --prefix Frontend",
+    "postinstall": "npm install --prefix Frontend"
+  }
+}

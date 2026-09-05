@@ -49,14 +49,16 @@ export function OpsProvider({ children, navigate }) {
   }, [tick]);
 
   const icebergs = useMemo(() => {
-    const drift = (tick % 240) / 240;
+    const drift = (tick % 300) / 300;
     return MOCK.icebergs.map((ib, idx) => {
-      const t = (drift + idx * 0.18) % 1;
+      const t = (drift + idx * 0.22) % 1;
       const pos = pointOnPath(ib.trajectory, t);
-      const dist = Number((ib.distanceKm - t * ib.driftKmh * 2.2).toFixed(1));
+      const dist = Number((ib.distanceKm - t * ib.driftKmh * 1.5).toFixed(1));
       return {
         ...ib,
-        position: { x: pos.x, y: pos.y },
+        lat: pos.lat,
+        lon: pos.lon,
+        position: { lat: pos.lat, lon: pos.lon, x: pos.x, y: pos.y },
         distanceKm: Math.max(3.4, dist),
       };
     });
@@ -64,14 +66,29 @@ export function OpsProvider({ children, navigate }) {
 
   const selectedRoute = routeById(selectedRouteId);
   const vessel = useMemo(() => {
-    const t = (tick % 220) / 220;
+    // Vessel makes smooth simulated progress along the route towards Bharati Station
+    const t = (tick % 360) / 360;
     const pos = pointOnPath(selectedRoute.path, t);
+    const remainingKm = pos.remainingKm ?? (selectedRoute.distanceKm ? Math.round(selectedRoute.distanceKm * (1 - t)) : 280);
+    const speed = Number((11.4 + Math.sin(tick / 14) * 0.8).toFixed(1));
+    const speedKmh = speed * 1.852; // 1 knot = 1.852 km/h
+    const etaHours = speedKmh > 0 ? remainingKm / speedKmh : 20;
+    const h = Math.floor(etaHours);
+    const m = Math.round((etaHours - h) * 60);
+    const etaLabel = `${h}h ${m < 10 ? "0" : ""}${m}m`;
+
     return {
       ...MOCK.vessel,
-      position: { x: pos.x, y: pos.y },
+      lat: pos.lat,
+      lon: pos.lon,
+      position: { lat: pos.lat, lon: pos.lon, x: pos.x, y: pos.y },
       heading: pos.heading,
-      speed: Number((10.2 + Math.sin(tick / 12) * 1.4).toFixed(1)),
+      speed,
       progress: t,
+      remainingKm,
+      totalKm: pos.totalKm || selectedRoute.distanceKm,
+      etaLabel,
+      destinationName: "Bharati Research Station",
     };
   }, [tick, selectedRoute]);
 

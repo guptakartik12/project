@@ -15,6 +15,116 @@ export function pctToLatLon(x, y) {
   return [lat, lon];
 }
 
+/** Standardises any coordinate format into [lat, lon]. */
+export function toLatLng(p) {
+  if (!p) return [0, 0];
+  if (Array.isArray(p) && p.length >= 2) return [Number(p[0]), Number(p[1])];
+  if (typeof p.lat === "number" && typeof p.lon === "number") return [p.lat, p.lon];
+  if (typeof p.lat === "number" && typeof p.lng === "number") return [p.lat, p.lng];
+  if (typeof p.x === "number" && typeof p.y === "number") {
+    // If x/y looks like lat/lon already (Antarctica lat is negative 60-75)
+    if (p.y < 0 && p.x > 0) return [p.y, p.x];
+    return pctToLatLon(p.x, p.y);
+  }
+  return [0, 0];
+}
+
+/** Haversine formula for exact distance between two coordinates in km. */
+export function haversineKm(coord1, coord2) {
+  const [lat1, lon1] = toLatLng(coord1);
+  const [lat2, lon2] = toLatLng(coord2);
+  const R = 6371; // Earth radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/** Computes initial compass bearing (0-360 degrees) from coord1 to coord2. */
+export function calculateBearing(coord1, coord2) {
+  const [lat1, lon1] = toLatLng(coord1);
+  const [lat2, lon2] = toLatLng(coord2);
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const lambdaDiff = ((lon2 - lon1) * Math.PI) / 180;
+  const y = Math.sin(lambdaDiff) * Math.cos(phi2);
+  const x =
+    Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(lambdaDiff);
+  const theta = Math.atan2(y, x);
+  return (theta * 180 / Math.PI + 360) % 360;
+}
+
+/** Total distance of a multi-point path in km. */
+export function totalPathDistanceKm(path) {
+  if (!path || path.length < 2) return 0;
+  let dist = 0;
+  for (let i = 0; i < path.length - 1; i += 1) {
+    dist += haversineKm(path[i], path[i + 1]);
+  }
+  return dist;
+}
+
+/**
+ * Interpolates an exact position and compass heading along a geographic path based on progress t (0 to 1).
+ */
+export function interpolateGeoPath(path, t) {
+  if (!path || !path.length) {
+    return { lat: BHARATI.lat, lon: BHARATI.lon, heading: 0, remainingKm: 0, totalKm: 0, progress: 0 };
+  }
+  if (path.length === 1) {
+    const [lat, lon] = toLatLng(path[0]);
+    return { lat, lon, heading: 0, remainingKm: 0, totalKm: 0, progress: 1 };
+  }
+
+  const clamped = Math.min(0.9999, Math.max(0, t));
+  const segDistances = [];
+  let totalKm = 0;
+
+  for (let i = 0; i < path.length - 1; i += 1) {
+    const d = haversineKm(path[i], path[i + 1]);
+    segDistances.push(d);
+    totalKm += d;
+  }
+
+  const targetDist = clamped * totalKm;
+  let accumulated = 0;
+  let activeIdx = 0;
+
+  for (let i = 0; i < segDistances.length; i += 1) {
+    if (accumulated + segDistances[i] >= targetDist || i === segDistances.length - 1) {
+      activeIdx = i;
+      break;
+    }
+    accumulated += segDistances[i];
+  }
+
+  const segLength = segDistances[activeIdx] || 0.0001;
+  const segProgress = (targetDist - accumulated) / segLength;
+  const [latA, lonA] = toLatLng(path[activeIdx]);
+  const [latB, lonB] = toLatLng(path[activeIdx + 1]);
+
+  const currentLat = latA + (latB - latA) * segProgress;
+  const currentLon = lonA + (lonB - lonA) * segProgress;
+  const heading = Math.round(calculateBearing([latA, lonA], [latB, lonB]));
+  const remainingKm = Math.max(0, totalKm - targetDist);
+
+  return {
+    lat: currentLat,
+    lon: currentLon,
+    heading,
+    remainingKm: Math.round(remainingKm * 10) / 10,
+    totalKm: Math.round(totalKm * 10) / 10,
+    progress: clamped,
+  };
+}
+
 export function sic01(v) {
   if (v == null || Number.isNaN(Number(v))) return null;
   const n = Number(v);

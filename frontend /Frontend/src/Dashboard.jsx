@@ -504,12 +504,12 @@ function KPIRow() {
 
 const DEFAULT_LAYERS = {
   seaIce: true,
-  icebergs: false,
+  icebergs: true,
   wind: false,
   temperature: false,
   riskZones: true,
-  vessel: false,
-  recommendedRoute: false,
+  vessel: true,
+  recommendedRoute: true,
   alternativeRoutes: false,
 };
 
@@ -621,7 +621,7 @@ function SeaIceLegend() {
 
 function RouteLegend({ layers }) {
   const items = [];
-  if (layers.recommendedRoute) items.push({ label: "AI Optimal", color: MOCK.routes.recommended.color, width: 3 });
+  if (layers.recommendedRoute) items.push({ label: "AI Optimal (To Bharati)", color: MOCK.routes.recommended.color, width: 3 });
   if (layers.alternativeRoutes) {
     items.push({ label: "Fastest", color: MOCK.routes.fastest.color, width: 1.6, dash: true });
     items.push({ label: "Safest", color: MOCK.routes.safest.color, width: 1.6, dash: true });
@@ -630,10 +630,10 @@ function RouteLegend({ layers }) {
   return (
     <div
       style={{
-        position: "absolute", top: 12, left: 12, background: "rgba(255,255,255,0.95)",
+        position: "absolute", top: 82, left: 12, background: "rgba(255,255,255,0.95)",
         backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
         border: `1px solid ${COLORS.border}`, borderRadius: 7, padding: "8px 10px",
-        boxShadow: "0 1px 4px rgba(13,43,62,0.08)", zIndex: 1100, fontSize: 11,
+        boxShadow: "0 1px 4px rgba(13,43,62,0.08)", zIndex: 1050, fontSize: 11,
       }}
     >
       {items.map((it) => (
@@ -650,6 +650,7 @@ function RouteLegend({ layers }) {
 
 function AntarcticMap({ layers, onToggleLayer, selectedIcebergId, onSelectIceberg, height = 480, showLegend = true }) {
   const { sicField, status } = useSeaIce();
+  const { vessel, icebergs, weather, selectedRoute } = useOps();
   const [cell, setCell] = useState(null);
   const shape = sicField?.prediction
     ? `${sicField.prediction.length}×${sicField.prediction[0].length}`
@@ -657,28 +658,28 @@ function AntarcticMap({ layers, onToggleLayer, selectedIcebergId, onSelectIceber
   const dateLabel = (sicField?.targetDate || "").toString().slice(0, 10);
 
   return (
-    <div className="ani-map-frame" style={{ position: "relative", width: "100%", height, borderRadius: 8, overflow: "hidden", border: `1px solid ${COLORS.border}`, background: "#EAF3F6" }}>
+    <div className="ani-map-frame" style={{ position: "relative", width: "100%", height, borderRadius: 8, overflow: "hidden", border: `1px solid ${COLORS.border}`, background: "#0a1926" }}>
       <SeaIceMap
         height={height}
         sicField={sicField}
         layers={layers}
         station={MOCK.station}
-        vessel={MOCK.vessel}
+        vessel={vessel || MOCK.vessel}
         destination={MOCK.destination}
-        icebergs={MOCK.icebergs}
+        icebergs={icebergs || MOCK.icebergs}
         routes={MOCK.routes}
-        weather={MOCK.weather}
+        weather={weather || MOCK.weather}
         selectedIcebergId={selectedIcebergId}
         onSelectIceberg={onSelectIceberg}
         onInspectCell={setCell}
       />
 
-      {/* Model status indicator badge — cleanly positioned in bottom-right corner */}
+      {/* Model status indicator badge — positioned cleanly above HUD */}
       <div
         className="ani-map-status-badge"
         style={{
           position: "absolute",
-          bottom: 12,
+          bottom: 38,
           right: 12,
           zIndex: 1050,
           background: "rgba(255,255,255,0.94)",
@@ -686,8 +687,8 @@ function AntarcticMap({ layers, onToggleLayer, selectedIcebergId, onSelectIceber
           WebkitBackdropFilter: "blur(6px)",
           border: `1px solid ${COLORS.border}`,
           borderRadius: 6,
-          padding: "5px 9px",
-          fontSize: 11,
+          padding: "4px 8px",
+          fontSize: 10.5,
           fontWeight: 600,
           color: COLORS.navy,
           boxShadow: "0 2px 6px rgba(13,43,62,0.08)",
@@ -722,7 +723,7 @@ function AntarcticMap({ layers, onToggleLayer, selectedIcebergId, onSelectIceber
       {cell && (
         <div
           style={{
-            position: "absolute", left: 12, top: 12, background: "rgba(255,255,255,0.97)",
+            position: "absolute", left: 12, top: 130, background: "rgba(255,255,255,0.97)",
             backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
             border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 12,
             boxShadow: "0 6px 20px rgba(13,43,62,0.16)", width: 200, maxWidth: "calc(100% - 24px)", zIndex: 1150,

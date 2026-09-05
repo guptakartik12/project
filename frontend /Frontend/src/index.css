@@ -152,6 +152,56 @@ code {
   50% { opacity: 0.35; }
 }
 
+.ani-radar-ping {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  border: 2px solid #0F6E8C;
+  background: rgba(15, 110, 140, 0.15);
+  animation: aniRadarPing 2s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes aniRadarPing {
+  0% {
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.4);
+    opacity: 0;
+  }
+}
+
+.ani-station-beacon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  border: 2px solid #3E8E6F;
+  background: rgba(62, 142, 111, 0.2);
+  animation: aniStationBeacon 2.4s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes aniStationBeacon {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.6);
+    opacity: 0;
+  }
+}
+
 .ani-map-frame {
   width: 100%;
   min-height: 220px;
